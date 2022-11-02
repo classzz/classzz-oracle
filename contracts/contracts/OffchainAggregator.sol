@@ -539,7 +539,7 @@ contract OffchainAggregator is Owned, OffchainAggregatorBilling, AggregatorV2V3I
     bytes32[] calldata _rs, bytes32[] calldata _ss, bytes32 _rawVs // signatures
   )
     external
-  {
+  { 
     uint256 initialGas = gasleft(); // This line must come first
     // Make sure the transmit message-length matches the inputs. Otherwise, the
     // transmitter could append an arbitrarily long (up to gas-block limit)
