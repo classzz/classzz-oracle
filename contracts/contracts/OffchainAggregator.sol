@@ -86,10 +86,6 @@ contract OffchainAggregator is Owned, OffchainAggregatorBilling, AggregatorV2V3I
     uint8 _decimals,
     string memory _description
   )
-    OffchainAggregatorBilling(_maximumGasPrice, _reasonableGasPrice, _microLinkPerEth,
-      _linkGweiPerObservation, _linkGweiPerTransmission, _link,
-      _billingAccessController
-    )
   {
     decimals = _decimals;
     s_description = _description;
