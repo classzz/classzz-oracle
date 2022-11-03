@@ -15,9 +15,13 @@ import "./TypeAndVersionInterface.sol";
   * @dev For details on its operation, see the offchain reporting protocol design
   * @dev doc, which refers to this contract as simply the "contract".
 */
-contract OffchainAggregator is Owned, OffchainAggregatorBilling, AggregatorV2V3Interface, TypeAndVersionInterface {
+contract OffchainAggregator is Owned, AggregatorV2V3Interface, TypeAndVersionInterface {
 
   uint256 constant private maxUint32 = (1 << 32) - 1;
+
+  // Maximum number of oracles the offchain reporting protocol is designed for
+  uint256 constant internal maxNumOracles = 31;
+
 
   // Storing these fields used on the hot path in a HotVars variable reduces the
   // retrieval of all of them to a single SLOAD. If any further fields are
@@ -58,6 +62,9 @@ contract OffchainAggregator is Owned, OffchainAggregatorBilling, AggregatorV2V3I
   // Highest answer the system is allowed to report in response to transmissions
   int192 immutable public maxAnswer;
 
+  // s_signers contains the signing address of each oracle
+  address[] internal s_signers;
+
   /*
    * @param _maximumGasPrice highest gas price for which transmitter will be compensated
    * @param _reasonableGasPrice transmitter will receive reward for gas prices under this value
@@ -73,23 +80,15 @@ contract OffchainAggregator is Owned, OffchainAggregatorBilling, AggregatorV2V3I
    * @param _description short human-readable description of observable this contract's answers pertain to
    */
   constructor(
-    uint32 _maximumGasPrice,
-    uint32 _reasonableGasPrice,
-    uint32 _microLinkPerEth,
-    uint32 _linkGweiPerObservation,
-    uint32 _linkGweiPerTransmission,
     address _link,
     int192 _minAnswer,
     int192 _maxAnswer,
-    AccessControllerInterface _billingAccessController,
-    AccessControllerInterface _requesterAccessController,
     uint8 _decimals,
     string memory _description
   )
   {
     decimals = _decimals;
     s_description = _description;
-    setRequesterAccessController(_requesterAccessController);
     setValidatorConfig(AggregatorValidatorInterface(0x0), 0);
     minAnswer = _minAnswer;
     maxAnswer = _maxAnswer;
@@ -168,8 +167,6 @@ contract OffchainAggregator is Owned, OffchainAggregatorBilling, AggregatorV2V3I
     while (s_signers.length != 0) { // remove any old signer/transmitter addresses
       uint lastIdx = s_signers.length - 1;
       address signer = s_signers[lastIdx];
-      address transmitter = s_transmitters[lastIdx];
-      payOracle(transmitter);
       delete s_oracles[signer];
       delete s_oracles[transmitter];
       s_signers.pop();
