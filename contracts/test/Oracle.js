@@ -21,10 +21,18 @@ describe("Oracle", function () {
   it("test1", async function () {
 
     const { offchainAggregator, aggregatorProxy } = await loadFixture(deployOneYearLockFixture);
+
     // Contracts are deployed using the first signer/account by default
+    const [owner, otherAccount] = await ethers.getSigners();
+
+    const signers = [otherAccount.address]
+    console.log(signers)
+    await offchainAggregator.setSigners(signers)
 
     const version = offchainAggregator.address;
     console.log(version);
+
+
 
     const times = await aggregatorProxy.latestTimestamp()
     console.log(times)

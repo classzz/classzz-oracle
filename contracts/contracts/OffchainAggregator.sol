@@ -5,6 +5,9 @@ import "./AggregatorV2V3Interface.sol";
 import "./Owned.sol";
 import "./TypeAndVersionInterface.sol";
 
+
+import 'hardhat/console.sol';
+
 /**
   * @notice Onchain verification of reports from the offchain reporting protocol
 
@@ -103,8 +106,9 @@ contract OffchainAggregator is Owned, AggregatorV2V3Interface, TypeAndVersionInt
   external
   onlyOwner()
   {
+
     require(_signers.length <= maxNumOracles, "too many signers");
-    for (uint i = 0; i < _signers.length; i++) { // add new signer/transmitter addresses
+    for (uint i = 0; i < s_signers.length; i++) { // add new signer/transmitter addresses
       s_signers.pop();
     }
 
@@ -134,47 +138,6 @@ contract OffchainAggregator is Owned, AggregatorV2V3Interface, TypeAndVersionInt
     uint32 indexed aggregatorRoundId,
     int192 answer
   );
-
-  // decodeReport is used to check that the solidity and go code are using the
-  // same format. See TestOffchainAggregator.testDecodeReport and TestReportParsing
-  function decodeReport(bytes memory _report)
-  internal
-  pure
-  returns (
-    bytes32 rawReportContext,
-    bytes32 rawObservers,
-    int192[] memory observations
-  )
-  {
-    (rawReportContext, rawObservers, observations) = abi.decode(_report,
-      (bytes32, bytes32, int192[]));
-  }
-
-  // The constant-length components of the msg.data sent to transmit.
-  // See the "If we wanted to call sam" example on for example reasoning
-  // https://solidity.readthedocs.io/en/v0.7.2/abi-spec.html
-  uint16 private constant TRANSMIT_MSGDATA_CONSTANT_LENGTH_COMPONENT =
-  4 + // function selector
-  32 + // word containing start location of abiencoded _report value
-  32 + // word containing location start of abiencoded  _rs value
-  32 + // word containing start location of abiencoded _ss value
-  32 + // _rawVs value
-  32 + // word containing length of _report
-  32 + // word containing length _rs
-  32 + // word containing length of _ss
-  0; // placeholder
-
-  function expectedMsgDataLength(
-    bytes calldata _report, bytes32[] calldata _rs, bytes32[] calldata _ss
-  ) private pure returns (uint256 length)
-  {
-    // calldata will never be big enough to make this overflow
-    return uint256(TRANSMIT_MSGDATA_CONSTANT_LENGTH_COMPONENT) +
-    _report.length + // one byte pure entry in _report
-    _rs.length * 32 + // 32 bytes per entry in _rs
-    _ss.length * 32 + // 32 bytes per entry in _ss
-    0; // placeholder
-  }
 
   function transmit(
     uint32 roundId,
