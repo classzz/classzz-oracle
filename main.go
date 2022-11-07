@@ -86,7 +86,7 @@ func loadSigningKey(keyfiles []string, password string) map[common.Address]*ecds
 	return PrivateKey
 }
 
-func send(rate *big.Int, privateKey *ecdsa.PrivateKey) {
+func sendCzz(rate *big.Int, privateKey *ecdsa.PrivateKey) {
 
 	cAddress := common.HexToAddress("0xbcF031727072038370B8F4Cb27A3802851850209")
 	czzClient, err := czzclient.Dial("https://node.classzz.com")
@@ -94,7 +94,7 @@ func send(rate *big.Int, privateKey *ecdsa.PrivateKey) {
 		log.Error("NewClient", "err", err)
 	}
 
-	instance, err := NewUsdz(cAddress, czzClient)
+	instance, err := NewAggregator(cAddress, czzClient)
 
 	publicKey := privateKey.Public()
 	publicKeyECDSA, ok := publicKey.(*ecdsa.PublicKey)
@@ -118,7 +118,7 @@ func send(rate *big.Int, privateKey *ecdsa.PrivateKey) {
 	auth.Value = big.NewInt(0) // in wei
 	auth.GasPrice = gasPrice   // in wei
 
-	tx, err := instance.ConfigCurCzzUsdzRate(auth, rate)
+	tx, err := instance.Transmit(auth, ,rate)
 	if err != nil {
 		fmt.Println("err", err)
 	} else {

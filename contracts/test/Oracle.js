@@ -37,13 +37,10 @@ describe("Oracle", function () {
 
     await offchainAggregator.connect(accounts[1]).transmit(roundId, answer)
     await offchainAggregator.connect(accounts[2]).transmit(roundId, answer1)
-    const eve = await offchainAggregator.connect(accounts[3]).transmit(roundId, answer2)
-    console.log(eve.logs)
+    await offchainAggregator.connect(accounts[3]).transmit(roundId, answer2)
+
     const data1 = await aggregatorProxy.latestRoundData()
     console.log(data1)
-
-    const data2 = await aggregatorProxy.proposedLatestRoundData()
-    console.log(data2)
 
   });
 });

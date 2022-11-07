@@ -33,15 +33,6 @@ module.exports = {
             runs: 20
           }
         }
-      },
-      {
-        version: "0.8.0",
-        settings: {
-          optimizer: {
-            enabled: true,
-            runs: 20
-          }
-        }
       }
     ]
   },

@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.7.0;
+pragma solidity 0.8.10;
+import "@openzeppelin/contracts/access/Ownable.sol";
 
 import "./AggregatorV2V3Interface.sol";
-import "./Owned.sol";
 import "./TypeAndVersionInterface.sol";
-
 
 import 'hardhat/console.sol';
 
@@ -14,7 +13,7 @@ import 'hardhat/console.sol';
   * @dev For details on its operation, see the offchain reporting protocol design
   * @dev doc, which refers to this contract as simply the "contract".
 */
-contract OffchainAggregator is Owned, AggregatorV2V3Interface, TypeAndVersionInterface {
+contract OffchainAggregator is Ownable, AggregatorV2V3Interface, TypeAndVersionInterface {
 
   uint256 constant private maxUint32 = (1 << 32) - 1;
 
@@ -190,12 +189,11 @@ contract OffchainAggregator is Owned, AggregatorV2V3Interface, TypeAndVersionInt
         block.timestamp
       );
 
-      // emit AnswerUpdated(
-      //   address(0x0),
-      //   s_latestAggregatorRoundId,
-      //   block.timestamp
-      // );
-
+      emit AnswerUpdated(
+        median,
+        s_latestAggregatorRoundId,
+        block.timestamp
+      );
     }
   }
 
@@ -360,8 +358,6 @@ contract OffchainAggregator is Owned, AggregatorV2V3Interface, TypeAndVersionInt
     roundId = s_latestAggregatorRoundId;
 
     // Skipped for compatability with existing FluxAggregator in which latestRoundData never reverts.
-    // require(roundId != 0, V3_NO_DATA_ERROR);
-
     Transmission memory transmission = s_transmissions[uint32(roundId)];
     return (
     roundId,
