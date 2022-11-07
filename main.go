@@ -3,9 +3,9 @@ package main
 import (
 	"context"
 	"crypto/ecdsa"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/classzz/classzz-orace/config"
 	"github.com/classzz/go-classzz-v2/accounts/abi/bind"
 	"github.com/classzz/go-classzz-v2/accounts/keystore"
 	"github.com/classzz/go-classzz-v2/common"
@@ -16,6 +16,7 @@ import (
 	"io/ioutil"
 	"math/big"
 	"net/http"
+	"os"
 )
 
 type Candlestick struct {
@@ -24,9 +25,23 @@ type Candlestick struct {
 	Data    [][]string `json:"data"`
 }
 
+var (
+	cfg      config.Config
+	baseUnit = new(big.Int).Exp(big.NewInt(10), big.NewInt(14), nil)
+)
+
 func main() {
 
-	resp, err := http.Get("https://data.gateapi.io/api2/1/candlestick2/czz_usdt?group_sec=900&range_hour=4")
+	// Load configuration file
+	config.LoadConfig(&cfg, "")
+
+	glogger := log.NewGlogHandler(log.StreamHandler(os.Stderr, log.TerminalFormat(true)))
+	glogger.Verbosity(log.Lvl(cfg.DebugLevel))
+	log.Root().SetHandler(glogger)
+
+	privateKeys := loadSigningKey(cfg.PrivatePath, "")
+
+	resp, err := http.Get("https://data.gateapi.io/api2/1/candlestick2/ethf_usdt?group_sec=900&range_hour=4")
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -37,32 +52,36 @@ func main() {
 	_ = json.Unmarshal(body, &res)
 	fmt.Println(res)
 
-	prv := loadSigningKey([]string{"加密私钥位置"})
-
-	// 计算价格
-	rate := big.NewInt(0)
-
-	send(rate, prv[0])
+	index := 2
+	datas := res.Data[len(res.Data)-1]
+	for _, v := range privateKeys {
+		rate, _ := big.NewFloat(0.0).SetString(datas[index])
+		rateInt, _ := big.NewFloat(0).Mul(rate, big.NewFloat(10000)).Int(nil)
+		rateInt = new(big.Int).Mul(rateInt, baseUnit)
+		send(rateInt, v)
+		index++
+	}
 }
-
-func loadSigningKey(keyfiles []string) []*ecdsa.PrivateKey {
-	PrivateKey := []*ecdsa.PrivateKey{}
-	password, _ := prompt.Stdin.PromptPassword("Please enter the password :")
+func loadSigningKey(keyfiles []string, password string) map[common.Address]*ecdsa.PrivateKey {
+	PrivateKey := map[common.Address]*ecdsa.PrivateKey{}
+	if password == "" {
+		password, _ = prompt.Stdin.PromptPassword("Please enter the password :")
+	}
 	for _, v := range keyfiles {
 		keyjson, err := ioutil.ReadFile(v)
 		if err != nil {
 			log.Error("failed to read the keyfile at", "keyfile", v, "err", err)
+			os.Exit(0)
 		}
 
 		key, err := keystore.DecryptKey(keyjson, password)
 		if err != nil {
 			log.Error("error decrypting ", "err", err)
+			os.Exit(0)
 		}
 
-		priKey := key.PrivateKey
-		from := crypto.PubkeyToAddress(priKey.PublicKey)
-		PrivateKey = append(PrivateKey, key.PrivateKey)
-		fmt.Println("address ", from.Hex(), "key", hex.EncodeToString(priKey.PublicKey.X.Bytes()))
+		from := crypto.PubkeyToAddress(key.PrivateKey.PublicKey)
+		PrivateKey[from] = key.PrivateKey
 	}
 	return PrivateKey
 }

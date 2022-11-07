@@ -34,7 +34,6 @@ contract OffchainAggregator is Owned, AggregatorV2V3Interface, TypeAndVersionInt
 
   // into the config digest, to prevent replay attacks.
   uint32 internal s_latestConfigBlockNumber; // makes it easier for offchain systems
-  // to extract config from logs.
 
   uint32 internal s_latestAggregatorRoundId;
 
@@ -47,16 +46,8 @@ contract OffchainAggregator is Owned, AggregatorV2V3Interface, TypeAndVersionInt
   address[] internal s_signers;
 
   /*
-   * @param _maximumGasPrice highest gas price for which transmitter will be compensated
-   * @param _reasonableGasPrice transmitter will receive reward for gas prices under this value
-   * @param _microLinkPerEth reimbursement per ETH of gas cost, in 1e-6LINK units
-   * @param _linkGweiPerObservation reward to oracle for contributing an observation to a successfully transmitted report, in 1e-9LINK units
-   * @param _linkGweiPerTransmission reward to transmitter of a successful report, in 1e-9LINK units
-   * @param _link address of the LINK contract
    * @param _minAnswer lowest answer the median of a report is allowed to be
    * @param _maxAnswer highest answer the median of a report is allowed to be
-   * @param _billingAccessController access controller for billing admin functions
-   * @param _requesterAccessController access controller for requesting new rounds
    * @param _decimals answers are stored in fixed-point format, with this many digits of precision
    * @param _description short human-readable description of observable this contract's answers pertain to
    */
@@ -145,63 +136,66 @@ contract OffchainAggregator is Owned, AggregatorV2V3Interface, TypeAndVersionInt
   )
   external
   {
-    {
-      uint temp = 0;
+    console.log("transmit======",roundId);
+    uint temp = 0;
+    for (uint i = 0; i < s_signers.length; i++) { // add new signer/transmitter addresses
+      if (s_signers[i] == msg.sender){
+        temp = 1;
+        break;
+      }
+    }
+
+    require(temp != 0, "signer does not exist");
+    require(s_signers_transmissions[roundId][msg.sender].answer == 0, "Admin repeated submission");
+    require(roundId > s_latestAggregatorRoundId, "roundId");
+
+    s_count[roundId]++;
+    s_signers_transmissions[roundId][msg.sender] = Transmission(answer, uint64(block.timestamp));
+
+    if (s_count[roundId] == s_signers.length) {
+
+      uint index = s_signers.length;
+      int192[] memory answer_arr = new int192[](index);
       for (uint i = 0; i < s_signers.length; i++) { // add new signer/transmitter addresses
-        if (s_signers[i] == msg.sender){
-          temp = 1;
-          break;
-        }
+        answer_arr[i] = s_signers_transmissions[roundId][s_signers[i]].answer;
       }
 
-      require(temp != 0, "signer does not exist");
-      require(s_signers_transmissions[roundId][msg.sender].answer == 0, "Admin repeated submission");
-      require(roundId > s_latestAggregatorRoundId, "roundId");
+      console.log("s_signers======", s_signers.length);
 
-      s_count[roundId]++;
-      if (s_count[roundId] == s_signers.length) {
-
-        int192[] storage answer_arr;
-        for (uint i = 0; i < s_signers.length; i++) { // add new signer/transmitter addresses
-          answer_arr.push(s_signers_transmissions[roundId][s_signers[i]].answer);
-        }
-
-        for (uint i = 1;i < answer_arr.length;i++){
-          int192 temp1 = answer_arr[i];
-          uint j=i;
-          while( (j >= 1) && (temp1 < answer_arr[j-1])){
-            answer_arr[j] = answer_arr[j-1];
-            j--;
+      for (uint i = 0; i < answer_arr.length; i++){
+        for (uint j = 1; j < i; j++){
+          if (answer_arr[i] < answer_arr[j]) {
+            int192 x = answer_arr[i];
+            answer_arr[i] = answer_arr[j];
+            answer_arr[j] = x;
           }
-          answer_arr[j] = temp1;
         }
-
-        int192 median = answer_arr[answer_arr.length/2];
-        require(minAnswer <= median && median <= maxAnswer, "median is out of min-max range");
-        s_latestAggregatorRoundId++;
-        s_transmissions[s_latestAggregatorRoundId] = Transmission(median, uint64(block.timestamp));
-
-        emit NewTransmission(
-          s_latestAggregatorRoundId,
-          median
-        );
-        // Emit these for backwards compatability with offchain consumers
-        // that only support legacy events
-        emit NewRound(
-          s_latestAggregatorRoundId,
-          address(0x0), // use zero address since we don't have anybody "starting" the round here
-          block.timestamp
-        );
-
-        // emit AnswerUpdated(
-        //   address(0x0),
-        //   s_latestAggregatorRoundId,
-        //   block.timestamp
-        // );
-
-      }else{
-        s_signers_transmissions[roundId][msg.sender] = Transmission(answer, uint64(block.timestamp));
       }
+
+      int192 median = answer_arr[answer_arr.length/2];
+      require(minAnswer <= median && median <= maxAnswer, "median is out of min-max range");
+      s_transmissions[roundId] = Transmission(median, uint64(block.timestamp));
+      s_latestAggregatorRoundId++;
+
+      emit NewTransmission(
+        s_latestAggregatorRoundId,
+        median
+      );
+
+      // Emit these for backwards compatability with offchain consumers
+      // that only support legacy events
+      emit NewRound(
+        s_latestAggregatorRoundId,
+        address(0x0), // use zero address since we don't have anybody "starting" the round here
+        block.timestamp
+      );
+
+      // emit AnswerUpdated(
+      //   address(0x0),
+      //   s_latestAggregatorRoundId,
+      //   block.timestamp
+      // );
+
     }
   }
 
