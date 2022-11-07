@@ -15,10 +15,7 @@ import 'hardhat/console.sol';
 */
 contract OffchainAggregator is Ownable, AggregatorV2V3Interface, TypeAndVersionInterface {
 
-  uint256 constant private maxUint32 = (1 << 32) - 1;
-
-  // Maximum number of oracles the offchain reporting protocol is designed for
-  uint256 constant internal maxNumOracles = 31;
+  uint256 constant internal minNumOracles = 3;
 
   // Transmission records the median answer from the transmit transaction at
   // time timestamp
@@ -151,7 +148,7 @@ contract OffchainAggregator is Ownable, AggregatorV2V3Interface, TypeAndVersionI
     s_count[roundId]++;
     s_signers_transmissions[roundId][msg.sender] = Transmission(answer, uint64(block.timestamp));
 
-    if (s_count[roundId] == s_signers.length) {
+    if (s_count[roundId] == minNumOracles) {
 
       uint index = s_signers.length;
       int192[] memory answer_arr = new int192[](index);

@@ -51,17 +51,68 @@ func main() {
 	var res Candlestick
 	_ = json.Unmarshal(body, &res)
 	fmt.Println(res)
+	sendCzz(privateKeys, res)
+
+}
+
+func sendCzz(privateKeys map[common.Address]*ecdsa.PrivateKey, res Candlestick) {
+
+	cAddress := common.HexToAddress("0xbcF031727072038370B8F4Cb27A3802851850209")
+	czzClient, err := czzclient.Dial("https://node.classzz.com")
+	if err != nil {
+		log.Error("NewClient", "err", err)
+	}
+
+	instance, err := NewAggregator(cAddress, czzClient)
+	latestRound, err := instance.LatestRound(nil)
 
 	index := 2
 	datas := res.Data[len(res.Data)-1]
 	for _, v := range privateKeys {
 		rate, _ := big.NewFloat(0.0).SetString(datas[index])
-		rateInt, _ := big.NewFloat(0).Mul(rate, big.NewFloat(10000)).Int(nil)
-		rateInt = new(big.Int).Mul(rateInt, baseUnit)
-		send(rateInt, v)
+		rateInt, _ := big.NewFloat(0).Mul(rate, big.NewFloat(100000000)).Int(nil)
+		sendTx(rateInt, uint32(latestRound.Uint64())+1, v, instance, czzClient)
 		index++
 	}
 }
+
+func sendTx(rate *big.Int, latestRound uint32, privateKey *ecdsa.PrivateKey, aggregator *Aggregator, client *czzclient.Client) {
+
+	publicKey := privateKey.Public()
+	publicKeyECDSA, ok := publicKey.(*ecdsa.PublicKey)
+	if !ok {
+		fmt.Errorf("error casting public key to ECDSA")
+	}
+
+	fromAddress := crypto.PubkeyToAddress(*publicKeyECDSA)
+	nonce, err := client.PendingNonceAt(context.TODO(), fromAddress)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	gasPrice, err := client.SuggestGasPrice(context.TODO())
+	if err != nil {
+		log.Error("SuggestGasPrice", "err", err)
+	}
+
+	chainId, err := client.ChainID(context.TODO())
+	if err != nil {
+		log.Error("SuggestGasPrice", "err", err)
+	}
+
+	auth, _ := bind.NewKeyedTransactorWithChainID(privateKey, chainId)
+	auth.Nonce = big.NewInt(int64(nonce))
+	auth.Value = big.NewInt(0) // in wei
+	auth.GasPrice = gasPrice   // in wei
+
+	tx, err := aggregator.Transmit(auth, latestRound, rate)
+	if err != nil {
+		fmt.Println("err", err)
+	} else {
+		log.Info("tx", "hash", tx.Hash())
+	}
+}
+
 func loadSigningKey(keyfiles []string, password string) map[common.Address]*ecdsa.PrivateKey {
 	PrivateKey := map[common.Address]*ecdsa.PrivateKey{}
 	if password == "" {
@@ -84,45 +135,4 @@ func loadSigningKey(keyfiles []string, password string) map[common.Address]*ecds
 		PrivateKey[from] = key.PrivateKey
 	}
 	return PrivateKey
-}
-
-func sendCzz(rate *big.Int, privateKey *ecdsa.PrivateKey) {
-
-	cAddress := common.HexToAddress("0xbcF031727072038370B8F4Cb27A3802851850209")
-	czzClient, err := czzclient.Dial("https://node.classzz.com")
-	if err != nil {
-		log.Error("NewClient", "err", err)
-	}
-
-	instance, err := NewAggregator(cAddress, czzClient)
-
-	publicKey := privateKey.Public()
-	publicKeyECDSA, ok := publicKey.(*ecdsa.PublicKey)
-	if !ok {
-		fmt.Errorf("error casting public key to ECDSA")
-	}
-
-	fromAddress := crypto.PubkeyToAddress(*publicKeyECDSA)
-	nonce, err := czzClient.PendingNonceAt(context.TODO(), fromAddress)
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	gasPrice, err := czzClient.SuggestGasPrice(context.TODO())
-	if err != nil {
-		log.Error("SuggestGasPrice", "err", err)
-	}
-
-	auth, _ := bind.NewKeyedTransactorWithChainID(privateKey, big.NewInt(61))
-	auth.Nonce = big.NewInt(int64(nonce))
-	auth.Value = big.NewInt(0) // in wei
-	auth.GasPrice = gasPrice   // in wei
-
-	tx, err := instance.Transmit(auth, ,rate)
-	if err != nil {
-		fmt.Println("err", err)
-	} else {
-		log.Info("tx", "hash", tx.Hash())
-	}
-
 }
