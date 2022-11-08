@@ -109,23 +109,27 @@ func sendTx(rate *big.Int, latestRound uint32, privateKey *ecdsa.PrivateKey, agg
 	publicKey := privateKey.Public()
 	publicKeyECDSA, ok := publicKey.(*ecdsa.PublicKey)
 	if !ok {
-		fmt.Errorf("error casting public key to ECDSA")
+		log.Error("error casting public key to ECDSA")
+		return
 	}
 
 	fromAddress := crypto.PubkeyToAddress(*publicKeyECDSA)
 	nonce, err := client.PendingNonceAt(context.TODO(), fromAddress)
 	if err != nil {
-		fmt.Println(err)
+		log.Error("PendingNonceAt", "err", err)
+		return
 	}
 
 	gasPrice, err := client.SuggestGasPrice(context.TODO())
 	if err != nil {
 		log.Error("SuggestGasPrice", "err", err)
+		return
 	}
 
 	chainId, err := client.ChainID(context.TODO())
 	if err != nil {
 		log.Error("SuggestGasPrice", "err", err)
+		return
 	}
 
 	auth, _ := bind.NewKeyedTransactorWithChainID(privateKey, chainId)
