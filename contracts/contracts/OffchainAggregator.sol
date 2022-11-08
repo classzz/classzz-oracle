@@ -4,7 +4,6 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 
 import "./AggregatorV2V3Interface.sol";
 import "./TypeAndVersionInterface.sol";
-
 import 'hardhat/console.sol';
 
 /**
@@ -15,7 +14,9 @@ import 'hardhat/console.sol';
 */
 contract OffchainAggregator is Ownable, AggregatorV2V3Interface, TypeAndVersionInterface {
 
-  uint256 constant internal minNumOracles = 3;
+  uint256 constant internal minNumSigns = 3;
+
+  uint256 constant internal maxNumOracles = 31;
 
   // Transmission records the median answer from the transmit transaction at
   // time timestamp
@@ -132,7 +133,6 @@ contract OffchainAggregator is Ownable, AggregatorV2V3Interface, TypeAndVersionI
   )
   external
   {
-    console.log("transmit======",roundId);
     uint temp = 0;
     for (uint i = 0; i < s_signers.length; i++) { // add new signer/transmitter addresses
       if (s_signers[i] == msg.sender){
@@ -148,15 +148,16 @@ contract OffchainAggregator is Ownable, AggregatorV2V3Interface, TypeAndVersionI
     s_count[roundId]++;
     s_signers_transmissions[roundId][msg.sender] = Transmission(answer, uint64(block.timestamp));
 
-    if (s_count[roundId] == minNumOracles) {
+    if (s_count[roundId] == minNumSigns) {
 
-      uint index = s_signers.length;
-      int192[] memory answer_arr = new int192[](index);
+      int192[] memory answer_arr = new int192[](minNumSigns);
+      uint index1 = 0;
       for (uint i = 0; i < s_signers.length; i++) { // add new signer/transmitter addresses
-        answer_arr[i] = s_signers_transmissions[roundId][s_signers[i]].answer;
+        if (s_signers_transmissions[roundId][s_signers[i]].answer != 0){
+          answer_arr[index1] = s_signers_transmissions[roundId][s_signers[i]].answer;
+          index1++;
+        }
       }
-
-      console.log("s_signers======", s_signers.length);
 
       for (uint i = 0; i < answer_arr.length; i++){
         for (uint j = 1; j < i; j++){
@@ -169,6 +170,7 @@ contract OffchainAggregator is Ownable, AggregatorV2V3Interface, TypeAndVersionI
       }
 
       int192 median = answer_arr[answer_arr.length/2];
+      console.log(answer_arr.length);
       require(minAnswer <= median && median <= maxAnswer, "median is out of min-max range");
       s_transmissions[roundId] = Transmission(median, uint64(block.timestamp));
       s_latestAggregatorRoundId++;

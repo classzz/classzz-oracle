@@ -10,6 +10,7 @@ import (
 	"github.com/classzz/go-classzz-v2/accounts/keystore"
 	"github.com/classzz/go-classzz-v2/common"
 	"github.com/classzz/go-classzz-v2/console/prompt"
+	"github.com/classzz/go-classzz-v2/core/types"
 	"github.com/classzz/go-classzz-v2/crypto"
 	"github.com/classzz/go-classzz-v2/czzclient"
 	"github.com/classzz/go-classzz-v2/log"
@@ -17,6 +18,7 @@ import (
 	"math/big"
 	"net/http"
 	"os"
+	"time"
 )
 
 type Candlestick struct {
@@ -26,8 +28,8 @@ type Candlestick struct {
 }
 
 var (
-	cfg      config.Config
-	baseUnit = new(big.Int).Exp(big.NewInt(10), big.NewInt(14), nil)
+	cfg           config.Config
+	startInterval = 1 * time.Minute
 )
 
 func main() {
@@ -40,24 +42,49 @@ func main() {
 	log.Root().SetHandler(glogger)
 
 	privateKeys := loadSigningKey(cfg.PrivatePath, "")
+	startTicker := time.NewTicker(startInterval)
+	for {
+		select {
+		case <-startTicker.C:
+			resp, err := http.Get("https://data.gateapi.io/api2/1/candlestick2/ethf_usdt?group_sec=900&range_hour=4")
+			if err != nil {
+				fmt.Println(err)
+			}
+			defer resp.Body.Close()
+			body, _ := ioutil.ReadAll(resp.Body)
+			var res Candlestick
+			_ = json.Unmarshal(body, &res)
+			sendCzz(privateKeys, res)
+			sendEthf(privateKeys, res)
+		}
+	}
+}
 
-	resp, err := http.Get("https://data.gateapi.io/api2/1/candlestick2/ethf_usdt?group_sec=900&range_hour=4")
+func sendEthf(privateKeys map[common.Address]*ecdsa.PrivateKey, res Candlestick) {
+
+	cAddress := common.HexToAddress("0xa3B1D9FDb89bC9D3Ea35C00aCDcB35eeFD42052F")
+	czzClient, err := czzclient.Dial("https://rpc.etherfair.org")
 	if err != nil {
-		fmt.Println(err)
+		log.Error("NewClient", "err", err)
 	}
 
-	defer resp.Body.Close()
-	body, _ := ioutil.ReadAll(resp.Body)
-	var res Candlestick
-	_ = json.Unmarshal(body, &res)
-	fmt.Println(res)
-	sendCzz(privateKeys, res)
+	instance, err := NewAggregator(cAddress, czzClient)
+	latestRound, err := instance.LatestRound(nil)
 
+	index := 2
+	datas := res.Data[len(res.Data)-1]
+	for _, v := range privateKeys {
+		log.Info("sendEthf", "latestRound", latestRound, "index", index)
+		rate, _ := big.NewFloat(0.0).SetString(datas[index])
+		rateInt, _ := big.NewFloat(0).Mul(rate, big.NewFloat(100000000)).Int(nil)
+		sendTx(rateInt, uint32(latestRound.Uint64())+1, v, instance, czzClient)
+		index++
+	}
 }
 
 func sendCzz(privateKeys map[common.Address]*ecdsa.PrivateKey, res Candlestick) {
 
-	cAddress := common.HexToAddress("0xbcF031727072038370B8F4Cb27A3802851850209")
+	cAddress := common.HexToAddress("0x7c53e442F0DB0F73B65e55Dd502522a1ec2FcCd6")
 	czzClient, err := czzclient.Dial("https://node.classzz.com")
 	if err != nil {
 		log.Error("NewClient", "err", err)
@@ -73,6 +100,7 @@ func sendCzz(privateKeys map[common.Address]*ecdsa.PrivateKey, res Candlestick) 
 		rateInt, _ := big.NewFloat(0).Mul(rate, big.NewFloat(100000000)).Int(nil)
 		sendTx(rateInt, uint32(latestRound.Uint64())+1, v, instance, czzClient)
 		index++
+		log.Info("sendCzz", "latestRound", latestRound, "index", index)
 	}
 }
 
@@ -110,6 +138,34 @@ func sendTx(rate *big.Int, latestRound uint32, privateKey *ecdsa.PrivateKey, agg
 		fmt.Println("err", err)
 	} else {
 		log.Info("tx", "hash", tx.Hash())
+	}
+	check(tx, client)
+}
+
+func check(checkTx *types.Transaction, client *czzclient.Client) {
+	count := 0
+	for {
+		count++
+		receipt, err := client.TransactionReceipt(context.TODO(), checkTx.Hash())
+
+		if receipt == nil {
+
+			if err != nil {
+				log.Error("TransactionReceipt", "err", err)
+				time.Sleep(5 * time.Second)
+				continue
+			}
+
+			log.Error("TransactionReceipt", "Receipt", receipt)
+			time.Sleep(5 * time.Second)
+			if count >= 10 {
+				log.Warn("Please command query later.", "txHash", checkTx.Hash().String())
+			}
+			continue
+		}
+
+		log.Info("Please success ", "txHash", checkTx.Hash().String())
+		break
 	}
 }
 
