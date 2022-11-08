@@ -139,7 +139,8 @@ func sendTx(rate *big.Int, latestRound uint32, privateKey *ecdsa.PrivateKey, agg
 
 	tx, err := aggregator.Transmit(auth, latestRound, rate)
 	if err != nil {
-		fmt.Println("err", err)
+		log.Error("Transmit", "err", err)
+		return
 	} else {
 		log.Info("tx", "hash", tx.Hash())
 	}
