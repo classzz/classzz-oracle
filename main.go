@@ -96,11 +96,11 @@ func sendCzz(privateKeys map[common.Address]*ecdsa.PrivateKey, res Candlestick) 
 	index := 2
 	datas := res.Data[len(res.Data)-1]
 	for _, v := range privateKeys {
+		log.Info("sendCzz", "latestRound", latestRound, "index", index)
 		rate, _ := big.NewFloat(0.0).SetString(datas[index])
 		rateInt, _ := big.NewFloat(0).Mul(rate, big.NewFloat(100000000)).Int(nil)
 		sendTx(rateInt, uint32(latestRound.Uint64())+1, v, instance, czzClient)
 		index++
-		log.Info("sendCzz", "latestRound", latestRound, "index", index)
 	}
 }
 
