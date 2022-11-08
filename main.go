@@ -29,7 +29,7 @@ type Candlestick struct {
 
 var (
 	cfg           config.Config
-	startInterval = 1 * time.Minute
+	startInterval = 15 * time.Minute
 )
 
 func main() {
