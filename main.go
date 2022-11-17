@@ -29,24 +29,30 @@ type Candlestick struct {
 
 var (
 	cfg           config.Config
-	startInterval = 15 * time.Minute
+	startInterval = 5 * time.Minute
 )
 
 func main() {
 
 	// Load configuration file
 	config.LoadConfig(&cfg, "")
-
 	glogger := log.NewGlogHandler(log.StreamHandler(os.Stderr, log.TerminalFormat(true)))
 	glogger.Verbosity(log.Lvl(cfg.DebugLevel))
 	log.Root().SetHandler(glogger)
+	for _, v := range cfg.Coins {
+		go send(v)
+	}
+}
 
+func send(coin config.Coins) {
 	privateKeys := loadSigningKey(cfg.PrivatePath, "")
 	startTicker := time.NewTicker(startInterval)
+	hourcount := 0
 	for {
 		select {
 		case <-startTicker.C:
-			resp, err := http.Get("https://data.gateapi.io/api2/1/candlestick2/ethf_usdt?group_sec=900&range_hour=4")
+			hourcount++
+			resp, err := http.Get(coin.Url)
 			if err != nil {
 				fmt.Println(err)
 			}
@@ -54,52 +60,65 @@ func main() {
 			body, _ := ioutil.ReadAll(resp.Body)
 			var res Candlestick
 			_ = json.Unmarshal(body, &res)
-			sendCzz(privateKeys, res)
-			sendEthf(privateKeys, res)
+
+			sendCzz(privateKeys, res, common.HexToAddress(coin.CzzAddress), hourcount)
+			sendEthf(privateKeys, res, common.HexToAddress(coin.EthfAddress), hourcount)
 		}
 	}
 }
 
-func sendEthf(privateKeys map[common.Address]*ecdsa.PrivateKey, res Candlestick) {
+func sendCzz(privateKeys map[common.Address]*ecdsa.PrivateKey, res Candlestick, cAddress common.Address, hourcount int) {
 
-	cAddress := common.HexToAddress("0xa3B1D9FDb89bC9D3Ea35C00aCDcB35eeFD42052F")
-	czzClient, err := czzclient.Dial("https://rpc.etherfair.org")
-	if err != nil {
-		log.Error("NewClient", "err", err)
-	}
-
-	instance, err := NewAggregator(cAddress, czzClient)
-	latestRound, err := instance.LatestRound(nil)
-
-	index := 2
-	datas := res.Data[len(res.Data)-1]
-	for _, v := range privateKeys {
-		log.Info("sendEthf", "latestRound", latestRound, "index", index)
-		rate, _ := big.NewFloat(0.0).SetString(datas[index])
-		rateInt, _ := big.NewFloat(0).Mul(rate, big.NewFloat(100000000)).Int(nil)
-		sendTx(rateInt, uint32(latestRound.Uint64())+1, v, instance, czzClient)
-		index++
-	}
-}
-
-func sendCzz(privateKeys map[common.Address]*ecdsa.PrivateKey, res Candlestick) {
-
-	cAddress := common.HexToAddress("0x7c53e442F0DB0F73B65e55Dd502522a1ec2FcCd6")
 	czzClient, err := czzclient.Dial("https://node.classzz.com")
 	if err != nil {
 		log.Error("NewClient", "err", err)
 	}
 
 	instance, err := NewAggregator(cAddress, czzClient)
-	latestRound, err := instance.LatestRound(nil)
+	latestRoundData, err := instance.LatestRoundData(nil)
 
 	index := 2
 	datas := res.Data[len(res.Data)-1]
 	for _, v := range privateKeys {
-		log.Info("sendCzz", "latestRound", latestRound, "index", index)
+		log.Info("sendCzz", "latestRound", latestRoundData.RoundId, "index", index)
 		rate, _ := big.NewFloat(0.0).SetString(datas[index])
 		rateInt, _ := big.NewFloat(0).Mul(rate, big.NewFloat(100000000)).Int(nil)
-		sendTx(rateInt, uint32(latestRound.Uint64())+1, v, instance, czzClient)
+
+		a := big.NewInt(0).Sub(rateInt, latestRoundData.Answer)
+		b := a.Abs(a)
+		c := b.Sub(b, big.NewInt(20))
+		if c.Cmp(rateInt) <= 0 && hourcount < 12 {
+			return
+		}
+		sendTx(rateInt, uint32(latestRoundData.RoundId.Uint64())+1, v, instance, czzClient)
+		index++
+	}
+}
+
+func sendEthf(privateKeys map[common.Address]*ecdsa.PrivateKey, res Candlestick, cAddress common.Address, hourcount int) {
+
+	czzClient, err := czzclient.Dial("https://rpc.etherfair.org")
+	if err != nil {
+		log.Error("NewClient", "err", err)
+	}
+
+	instance, err := NewAggregator(cAddress, czzClient)
+	latestRoundData, err := instance.LatestRoundData(nil)
+
+	index := 2
+	datas := res.Data[len(res.Data)-1]
+	for _, v := range privateKeys {
+		log.Info("sendEthf", "latestRound", latestRoundData.Answer, "index", index)
+
+		rate, _ := big.NewFloat(0.0).SetString(datas[index])
+		rateInt, _ := big.NewFloat(0).Mul(rate, big.NewFloat(100000000)).Int(nil)
+		a := big.NewInt(0).Sub(rateInt, latestRoundData.Answer)
+		b := a.Abs(a)
+		c := b.Sub(b, big.NewInt(20))
+		if c.Cmp(rateInt) <= 0 && hourcount < 12 {
+			return
+		}
+		sendTx(rateInt, uint32(latestRoundData.Answer.Uint64())+1, v, instance, czzClient)
 		index++
 	}
 }

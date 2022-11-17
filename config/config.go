@@ -8,8 +8,15 @@ import (
 )
 
 type Config struct {
+	Coins       []Coins  `json:"coins"`
 	PrivatePath []string `json:"private_path"`
 	DebugLevel  int      `json:"debug_level"`
+}
+
+type Coins struct {
+	Url         string `json:"url"`
+	CzzAddress  string `json:"czz_address"`
+	EthfAddress string `json:"ethf_address"`
 }
 
 func LoadConfig(cfg *Config, filep string) {
