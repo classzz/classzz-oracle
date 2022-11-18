@@ -41,6 +41,7 @@ func LoadConfig(cfg *Config, filep string) {
 	if err := jsonParser.Decode(&cfg); err != nil {
 		log.Fatal("Config error: ", err.Error())
 	}
+	select {}
 }
 
 func (cfg *Config) GetConfig() *Config {
