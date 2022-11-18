@@ -90,6 +90,7 @@ func sendCzz(privateKeys map[common.Address]*ecdsa.PrivateKey, res Candlestick, 
 		if c.Cmp(rateInt) <= 0 && hourcount < 12 {
 			return
 		}
+		hourcount = 0
 		sendTx(rateInt, uint32(latestRoundData.RoundId.Uint64())+1, v, instance, czzClient)
 		index++
 	}
@@ -118,6 +119,7 @@ func sendEthf(privateKeys map[common.Address]*ecdsa.PrivateKey, res Candlestick,
 		if c.Cmp(rateInt) <= 0 && hourcount < 12 {
 			return
 		}
+		hourcount = 0
 		sendTx(rateInt, uint32(latestRoundData.Answer.Uint64())+1, v, instance, czzClient)
 		index++
 	}
