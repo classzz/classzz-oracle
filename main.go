@@ -39,14 +39,15 @@ func main() {
 	glogger := log.NewGlogHandler(log.StreamHandler(os.Stderr, log.TerminalFormat(true)))
 	glogger.Verbosity(log.Lvl(cfg.DebugLevel))
 	log.Root().SetHandler(glogger)
+	privateKeys := loadSigningKey(cfg.PrivatePath, "")
 	for _, v := range cfg.Coins {
-		go send(v)
+		go send(v, privateKeys)
 	}
 	select {}
 }
 
-func send(coin config.Coins) {
-	privateKeys := loadSigningKey(cfg.PrivatePath, "")
+func send(coin config.Coins, privateKeys map[common.Address]*ecdsa.PrivateKey) {
+
 	startTicker := time.NewTicker(startInterval)
 	hourcount := 0
 	for {
