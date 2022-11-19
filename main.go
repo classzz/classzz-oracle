@@ -42,6 +42,7 @@ func main() {
 	for _, v := range cfg.Coins {
 		go send(v)
 	}
+	select {}
 }
 
 func send(coin config.Coins) {
