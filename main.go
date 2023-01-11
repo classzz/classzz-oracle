@@ -111,7 +111,7 @@ func sendEthf(privateKeys map[common.Address]*ecdsa.PrivateKey, res Candlestick,
 	index := 2
 	datas := res.Data[len(res.Data)-1]
 	for _, v := range privateKeys {
-		log.Info("sendEthf", "latestRound", latestRoundData.Answer, "index", index)
+		log.Info("sendEthf", "latestRound", latestRoundData.RoundId, "index", index)
 
 		rate, _ := big.NewFloat(0.0).SetString(datas[index])
 		rateInt, _ := big.NewFloat(0).Mul(rate, big.NewFloat(100000000)).Int(nil)
@@ -122,7 +122,7 @@ func sendEthf(privateKeys map[common.Address]*ecdsa.PrivateKey, res Candlestick,
 			return
 		}
 		hourcount = 0
-		sendTx(rateInt, uint32(latestRoundData.Answer.Uint64())+1, v, instance, czzClient)
+		sendTx(rateInt, uint32(latestRoundData.RoundId.Uint64())+1, v, instance, czzClient)
 		index++
 	}
 }
