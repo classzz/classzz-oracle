@@ -5,6 +5,12 @@ import (
 	"crypto/ecdsa"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"math/big"
+	"net/http"
+	"os"
+	"time"
+
 	"github.com/classzz/classzz-orace/config"
 	"github.com/classzz/go-classzz-v2/accounts/abi/bind"
 	"github.com/classzz/go-classzz-v2/accounts/keystore"
@@ -14,11 +20,6 @@ import (
 	"github.com/classzz/go-classzz-v2/crypto"
 	"github.com/classzz/go-classzz-v2/czzclient"
 	"github.com/classzz/go-classzz-v2/log"
-	"io/ioutil"
-	"math/big"
-	"net/http"
-	"os"
-	"time"
 )
 
 type Candlestick struct {
@@ -29,7 +30,7 @@ type Candlestick struct {
 
 var (
 	cfg           config.Config
-	startInterval = 5 * time.Minute
+	startInterval = 1 * time.Minute
 )
 
 func main() {
@@ -88,8 +89,8 @@ func sendCzz(privateKeys map[common.Address]*ecdsa.PrivateKey, res Candlestick, 
 
 		a := big.NewInt(0).Sub(rateInt, latestRoundData.Answer)
 		b := a.Abs(a)
-		c := b.Sub(b, big.NewInt(20))
-		if c.Cmp(rateInt) <= 0 && hourcount < 12 {
+		c := b.Mul(b, big.NewInt(20))
+		if c.Cmp(rateInt) <= 0 && hourcount < 60 {
 			return
 		}
 		hourcount = 0
@@ -117,8 +118,8 @@ func sendEthf(privateKeys map[common.Address]*ecdsa.PrivateKey, res Candlestick,
 		rateInt, _ := big.NewFloat(0).Mul(rate, big.NewFloat(100000000)).Int(nil)
 		a := big.NewInt(0).Sub(rateInt, latestRoundData.Answer)
 		b := a.Abs(a)
-		c := b.Sub(b, big.NewInt(20))
-		if c.Cmp(rateInt) <= 0 && hourcount < 12 {
+		c := b.Mul(b, big.NewInt(20))
+		if c.Cmp(rateInt) <= 0 && hourcount < 60 {
 			return
 		}
 		hourcount = 0
