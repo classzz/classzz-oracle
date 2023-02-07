@@ -79,7 +79,9 @@ func sendCzz(privateKeys map[common.Address]*ecdsa.PrivateKey, res Candlestick, 
 
 	instance, err := NewAggregator(cAddress, czzClient)
 	latestRoundData, err := instance.LatestRoundData(nil)
-
+	if err != nil || latestRoundData.Answer == nil {
+		return
+	}
 	index := 2
 	datas := res.Data[len(res.Data)-1]
 	for _, v := range privateKeys {
@@ -108,7 +110,9 @@ func sendEthf(privateKeys map[common.Address]*ecdsa.PrivateKey, res Candlestick,
 
 	instance, err := NewAggregator(cAddress, czzClient)
 	latestRoundData, err := instance.LatestRoundData(nil)
-
+	if err != nil || latestRoundData.Answer == nil {
+		return
+	}
 	index := 2
 	datas := res.Data[len(res.Data)-1]
 	for _, v := range privateKeys {
