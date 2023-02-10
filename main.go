@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math/big"
+	"math/rand"
 	"net/http"
 	"os"
 	"time"
@@ -23,9 +24,16 @@ import (
 )
 
 type Candlestick struct {
-	Elapsed string     `json:"elapsed"`
-	Result  string     `json:"result"`
-	Data    [][]string `json:"data"`
+	QuoteVolume   string `json:"quoteVolume"`
+	BaseVolume    string `json:"baseVolume"`
+	HighestBid    string `json:"highestBid"`
+	High24Hr      string `json:"high24hr"`
+	Last          string `json:"last"`
+	LowestAsk     string `json:"lowestAsk"`
+	Elapsed       string `json:"elapsed"`
+	Result        string `json:"result"`
+	Low24Hr       string `json:"low24hr"`
+	PercentChange string `json:"percentChange"`
 }
 
 var (
@@ -47,7 +55,7 @@ func main() {
 	select {}
 }
 
-func send(coin config.Coins, privateKeys map[common.Address]*ecdsa.PrivateKey) {
+func send(coin config.Coins, privateKeys []*ecdsa.PrivateKey) {
 
 	startTicker := time.NewTicker(startInterval)
 	hourcount := 0
@@ -64,44 +72,44 @@ func send(coin config.Coins, privateKeys map[common.Address]*ecdsa.PrivateKey) {
 			var res Candlestick
 			_ = json.Unmarshal(body, &res)
 
-			sendCzz(privateKeys, res, common.HexToAddress(coin.CzzAddress), hourcount)
+			//sendCzz(privateKeys, res, common.HexToAddress(coin.CzzAddress), hourcount)
 			sendEthf(privateKeys, res, common.HexToAddress(coin.EthfAddress), hourcount)
 		}
 	}
 }
 
-func sendCzz(privateKeys map[common.Address]*ecdsa.PrivateKey, res Candlestick, cAddress common.Address, hourcount int) {
+//func sendCzz(privateKeys map[common.Address]*ecdsa.PrivateKey, res Candlestick, cAddress common.Address, hourcount int) {
+//
+//	czzClient, err := czzclient.Dial("https://node.classzz.com")
+//	if err != nil {
+//		log.Error("NewClient", "err", err)
+//	}
+//
+//	instance, err := NewAggregator(cAddress, czzClient)
+//	latestRoundData, err := instance.LatestRoundData(nil)
+//	if err != nil || latestRoundData.Answer == nil {
+//		return
+//	}
+//	index := 2
+//	datas := res.Data[len(res.Data)-1]
+//	for _, v := range privateKeys {
+//		log.Info("sendCzz", "latestRound", latestRoundData.RoundId, "index", index)
+//		rate, _ := big.NewFloat(0.0).SetString(datas[index])
+//		rateInt, _ := big.NewFloat(0).Mul(rate, big.NewFloat(100000000)).Int(nil)
+//
+//		a := big.NewInt(0).Sub(rateInt, latestRoundData.Answer)
+//		b := a.Abs(a)
+//		c := b.Mul(b, big.NewInt(20))
+//		if c.Cmp(rateInt) <= 0 && hourcount < 60 {
+//			return
+//		}
+//		hourcount = 0
+//		sendTx(rateInt, uint32(latestRoundData.RoundId.Uint64())+1, v, instance, czzClient)
+//		index++
+//	}
+//}
 
-	czzClient, err := czzclient.Dial("https://node.classzz.com")
-	if err != nil {
-		log.Error("NewClient", "err", err)
-	}
-
-	instance, err := NewAggregator(cAddress, czzClient)
-	latestRoundData, err := instance.LatestRoundData(nil)
-	if err != nil || latestRoundData.Answer == nil {
-		return
-	}
-	index := 2
-	datas := res.Data[len(res.Data)-1]
-	for _, v := range privateKeys {
-		log.Info("sendCzz", "latestRound", latestRoundData.RoundId, "index", index)
-		rate, _ := big.NewFloat(0.0).SetString(datas[index])
-		rateInt, _ := big.NewFloat(0).Mul(rate, big.NewFloat(100000000)).Int(nil)
-
-		a := big.NewInt(0).Sub(rateInt, latestRoundData.Answer)
-		b := a.Abs(a)
-		c := b.Mul(b, big.NewInt(20))
-		if c.Cmp(rateInt) <= 0 && hourcount < 60 {
-			return
-		}
-		hourcount = 0
-		sendTx(rateInt, uint32(latestRoundData.RoundId.Uint64())+1, v, instance, czzClient)
-		index++
-	}
-}
-
-func sendEthf(privateKeys map[common.Address]*ecdsa.PrivateKey, res Candlestick, cAddress common.Address, hourcount int) {
+func sendEthf(privateKeys []*ecdsa.PrivateKey, res Candlestick, cAddress common.Address, hourcount int) {
 
 	czzClient, err := czzclient.Dial("https://rpc.etherfair.org")
 	if err != nil {
@@ -113,23 +121,24 @@ func sendEthf(privateKeys map[common.Address]*ecdsa.PrivateKey, res Candlestick,
 	if err != nil || latestRoundData.Answer == nil {
 		return
 	}
-	index := 2
-	datas := res.Data[len(res.Data)-1]
-	for _, v := range privateKeys {
-		log.Info("sendEthf", "latestRound", latestRoundData.RoundId, "index", index)
 
-		rate, _ := big.NewFloat(0.0).SetString(datas[index])
-		rateInt, _ := big.NewFloat(0).Mul(rate, big.NewFloat(100000000)).Int(nil)
-		a := big.NewInt(0).Sub(rateInt, latestRoundData.Answer)
-		b := a.Abs(a)
-		c := b.Mul(b, big.NewInt(20))
-		if c.Cmp(rateInt) <= 0 && hourcount < 60 {
-			return
-		}
-		hourcount = 0
-		sendTx(rateInt, uint32(latestRoundData.RoundId.Uint64())+1, v, instance, czzClient)
-		index++
+	rand.Seed(time.Now().UnixNano())
+	num := rand.Intn(3)
+
+	privateKey := privateKeys[num]
+
+	log.Info("sendEthf", "latestRound", latestRoundData.RoundId, "cAddress", cAddress.String())
+
+	rate, _ := big.NewFloat(0.0).SetString(res.Last)
+	rateInt, _ := big.NewFloat(0).Mul(rate, big.NewFloat(100000000)).Int(nil)
+	a := big.NewInt(0).Sub(rateInt, latestRoundData.Answer)
+	b := a.Abs(a)
+	c := b.Mul(b, big.NewInt(20))
+	if c.Cmp(rateInt) <= 0 && hourcount < 60 {
+		return
 	}
+	hourcount = 0
+	sendTx(rateInt, uint32(latestRoundData.RoundId.Uint64())+1, privateKey, instance, czzClient)
 }
 
 func sendTx(rate *big.Int, latestRound uint32, privateKey *ecdsa.PrivateKey, aggregator *Aggregator, client *czzclient.Client) {
@@ -202,8 +211,8 @@ func check(checkTx *types.Transaction, client *czzclient.Client) {
 	}
 }
 
-func loadSigningKey(keyfiles []string, password string) map[common.Address]*ecdsa.PrivateKey {
-	PrivateKey := map[common.Address]*ecdsa.PrivateKey{}
+func loadSigningKey(keyfiles []string, password string) []*ecdsa.PrivateKey {
+	PrivateKey := []*ecdsa.PrivateKey{}
 	if password == "" {
 		password, _ = prompt.Stdin.PromptPassword("Please enter the password :")
 	}
@@ -220,8 +229,7 @@ func loadSigningKey(keyfiles []string, password string) map[common.Address]*ecds
 			os.Exit(0)
 		}
 
-		from := crypto.PubkeyToAddress(key.PrivateKey.PublicKey)
-		PrivateKey[from] = key.PrivateKey
+		PrivateKey = append(PrivateKey, key.PrivateKey)
 	}
 	return PrivateKey
 }
