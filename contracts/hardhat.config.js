@@ -2,7 +2,8 @@ require("@nomiclabs/hardhat-waffle");
 
 module.exports = {
   networks: {
-    hardhat: {
+    ethf: {
+      url: "https://rpc.etherfair.org"
     }
   },
   solidity: {
