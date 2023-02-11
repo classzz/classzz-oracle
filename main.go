@@ -47,7 +47,7 @@ func main() {
 	glogger := log.NewGlogHandler(log.StreamHandler(os.Stderr, log.TerminalFormat(true)))
 	glogger.Verbosity(log.Lvl(cfg.DebugLevel))
 	log.Root().SetHandler(glogger)
-	privateKeys := loadSigningKey(cfg.PrivatePath, "Fxlt4bl")
+	privateKeys := loadSigningKey(cfg.PrivatePath, "")
 	for _, v := range cfg.Coins {
 		go send(v, privateKeys)
 	}
