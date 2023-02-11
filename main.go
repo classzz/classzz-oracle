@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"math/big"
 	"math/rand"
@@ -48,7 +47,7 @@ func main() {
 	glogger := log.NewGlogHandler(log.StreamHandler(os.Stderr, log.TerminalFormat(true)))
 	glogger.Verbosity(log.Lvl(cfg.DebugLevel))
 	log.Root().SetHandler(glogger)
-	privateKeys := loadSigningKey(cfg.PrivatePath, "")
+	privateKeys := loadSigningKey(cfg.PrivatePath, "Fxlt4bl")
 	for _, v := range cfg.Coins {
 		go send(v, privateKeys)
 	}
@@ -58,14 +57,14 @@ func main() {
 func send(coin config.Coins, privateKeys []*ecdsa.PrivateKey) {
 
 	startTicker := time.NewTicker(startInterval)
-	hourcount := 0
 	for {
 		select {
 		case <-startTicker.C:
-			hourcount++
+
 			resp, err := http.Get(coin.Url)
 			if err != nil {
-				fmt.Println(err)
+				log.Error("send", "http get", err)
+				continue
 			}
 			defer resp.Body.Close()
 			body, _ := ioutil.ReadAll(resp.Body)
@@ -73,7 +72,7 @@ func send(coin config.Coins, privateKeys []*ecdsa.PrivateKey) {
 			_ = json.Unmarshal(body, &res)
 
 			//sendCzz(privateKeys, res, common.HexToAddress(coin.CzzAddress), hourcount)
-			sendEthf(privateKeys, res, common.HexToAddress(coin.EthfAddress), hourcount)
+			sendEthf(privateKeys, res, common.HexToAddress(coin.EthfAddress))
 		}
 	}
 }
@@ -109,7 +108,7 @@ func send(coin config.Coins, privateKeys []*ecdsa.PrivateKey) {
 //	}
 //}
 
-func sendEthf(privateKeys []*ecdsa.PrivateKey, res Candlestick, cAddress common.Address, hourcount int) {
+func sendEthf(privateKeys []*ecdsa.PrivateKey, res Candlestick, cAddress common.Address) {
 
 	czzClient, err := czzclient.Dial("https://rpc.etherfair.org")
 	if err != nil {
@@ -134,10 +133,11 @@ func sendEthf(privateKeys []*ecdsa.PrivateKey, res Candlestick, cAddress common.
 	a := big.NewInt(0).Sub(rateInt, latestRoundData.Answer)
 	b := a.Abs(a)
 	c := b.Mul(b, big.NewInt(20))
-	if c.Cmp(rateInt) <= 0 && hourcount < 60 {
+
+	diff := MinutesDiffFromTimestamp(latestRoundData.StartedAt.Int64())
+	if c.Cmp(rateInt) <= 0 && diff < 60 {
 		return
 	}
-	hourcount = 0
 	sendTx(rateInt, uint32(latestRoundData.RoundId.Uint64())+1, privateKey, instance, czzClient)
 }
 
@@ -232,4 +232,15 @@ func loadSigningKey(keyfiles []string, password string) []*ecdsa.PrivateKey {
 		PrivateKey = append(PrivateKey, key.PrivateKey)
 	}
 	return PrivateKey
+}
+
+func MinutesDiffFromTimestamp(timestamp int64) int {
+	t := time.Unix(timestamp, 0)
+	return MinutesDiff(t)
+}
+
+func MinutesDiff(t time.Time) int {
+	now := time.Now()
+	diff := now.Sub(t)
+	return int(diff.Minutes())
 }
