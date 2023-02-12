@@ -128,8 +128,8 @@ func sendEthf(privateKeys []*ecdsa.PrivateKey, res Candlestick, cAddress common.
 
 	log.Info("sendEthf", "latestRound", latestRoundData.RoundId, "cAddress", cAddress.String())
 
-	rate, errb := big.NewFloat(0.0).SetString(res.Last)
-	if !errb {
+	rate, _ := big.NewFloat(0.0).SetString(res.Last)
+	if rate == nil {
 		return
 	}
 	rateInt, _ := big.NewFloat(0).Mul(rate, big.NewFloat(100000000)).Int(nil)
