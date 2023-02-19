@@ -35,6 +35,36 @@ type Candlestick struct {
 	PercentChange string `json:"percentChange"`
 }
 
+type Ave struct {
+	Code int    `json:"code"`
+	Msg  string `json:"msg"`
+	Data struct {
+		CirculatingSupply string      `json:"circulating_supply"`
+		MarketCap         string      `json:"market_cap"`
+		High24H           string      `json:"high_24h"`
+		Low24H            string      `json:"low_24h"`
+		Volume24H         string      `json:"volume_24h"`
+		TxCount24H        string      `json:"tx_count_24h"`
+		Amount24H         string      `json:"amount_24h"`
+		Turnover24H       string      `json:"turnover_24h"`
+		TotalSupply       string      `json:"total_supply"`
+		Price             string      `json:"price"`
+		Token             string      `json:"token"`
+		Chain             string      `json:"chain"`
+		Symbol            string      `json:"symbol"`
+		Decimal           int         `json:"decimal"`
+		Name              string      `json:"name"`
+		Holders           int         `json:"holders"`
+		IntroCn           string      `json:"intro_cn"`
+		IntroEn           string      `json:"intro_en"`
+		PriceChange       string      `json:"price_change"`
+		LogoUrl           interface{} `json:"logo_url"`
+		RiskLevel         int         `json:"risk_level"`
+		RiskInfo          interface{} `json:"risk_info"`
+		Appendix          string      `json:"appendix"`
+	} `json:"data"`
+}
+
 var (
 	cfg           config.Config
 	startInterval = 1 * time.Minute
@@ -49,7 +79,11 @@ func main() {
 	log.Root().SetHandler(glogger)
 	privateKeys := loadSigningKey(cfg.PrivatePath, "")
 	for _, v := range cfg.Coins {
-		go send(v, privateKeys)
+		if v.Type == 1 {
+			go send(v, privateKeys)
+		} else if v.Type == 2 {
+			go sendFren(v, privateKeys)
+		}
 	}
 	select {}
 }
@@ -73,6 +107,33 @@ func send(coin config.Coins, privateKeys []*ecdsa.PrivateKey) {
 
 			//sendCzz(privateKeys, res, common.HexToAddress(coin.CzzAddress), hourcount)
 			sendEthf(privateKeys, res, common.HexToAddress(coin.EthfAddress))
+		}
+	}
+}
+
+func sendFren(coin config.Coins, privateKeys []*ecdsa.PrivateKey) {
+
+	startTicker := time.NewTicker(startInterval)
+	for {
+		select {
+		case <-startTicker.C:
+			req, err := http.NewRequest("GET", coin.Url, nil)
+			req.Header.Add("Ave-Auth", "0x2w3d7af564e4bfda1c483642db7200787135ffet")
+			client := http.Client{
+				Timeout: 30 * time.Second,
+			}
+			resp, err := client.Do(req)
+
+			if err != nil {
+				log.Error("send", "http get", err)
+				continue
+			}
+			defer resp.Body.Close()
+			body, _ := ioutil.ReadAll(resp.Body)
+			var res Ave
+			_ = json.Unmarshal(body, &res)
+
+			sendEthfAve(privateKeys, res, common.HexToAddress(coin.EthfAddress))
 		}
 	}
 }
@@ -107,6 +168,43 @@ func send(coin config.Coins, privateKeys []*ecdsa.PrivateKey) {
 //		index++
 //	}
 //}
+
+func sendEthfAve(privateKeys []*ecdsa.PrivateKey, res Ave, cAddress common.Address) {
+
+	czzClient, err := czzclient.Dial("https://rpc.etherfair.org")
+	if err != nil {
+		log.Error("NewClient", "err", err)
+	}
+
+	instance, err := NewAggregator(cAddress, czzClient)
+	latestRoundData, err := instance.LatestRoundData(nil)
+	if err != nil || latestRoundData.Answer == nil {
+		return
+	}
+
+	rand.Seed(time.Now().UnixNano())
+	num := rand.Intn(3)
+
+	privateKey := privateKeys[num]
+
+	log.Info("sendEthf", "latestRound", latestRoundData.RoundId, "cAddress", cAddress.String())
+
+	rate, _ := big.NewFloat(0.0).SetString(res.Data.Price)
+	if rate == nil {
+		log.Error("NewClient", "rate", "rate is null")
+		return
+	}
+	rateInt, _ := big.NewFloat(0).Mul(rate, big.NewFloat(100000000)).Int(nil)
+	a := big.NewInt(0).Sub(rateInt, latestRoundData.Answer)
+	b := a.Abs(a)
+	c := b.Mul(b, big.NewInt(20))
+
+	diff := MinutesDiffFromTimestamp(latestRoundData.StartedAt.Int64())
+	if c.Cmp(rateInt) <= 0 && diff < 60 {
+		return
+	}
+	sendTx(rateInt, uint32(latestRoundData.RoundId.Uint64())+1, privateKey, instance, czzClient)
+}
 
 func sendEthf(privateKeys []*ecdsa.PrivateKey, res Candlestick, cAddress common.Address) {
 

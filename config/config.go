@@ -14,6 +14,7 @@ type Config struct {
 }
 
 type Coins struct {
+	Type        int    `json:"type"`
 	Url         string `json:"url"`
 	CzzAddress  string `json:"czz_address"`
 	EthfAddress string `json:"ethf_address"`
